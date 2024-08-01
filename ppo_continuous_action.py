@@ -142,7 +142,7 @@ def make_train(config, env_args, reference_clip=None):
         # TRAIN LOOP
         def _update_step(update_runner_state, unused):
             runner_state, update_steps = update_runner_state
-            
+
             # COLLECT TRAJECTORIES
             def _env_step(runner_state, unused):
                 train_state, env_state, last_obs, rng = runner_state
@@ -281,6 +281,9 @@ def make_train(config, env_args, reference_clip=None):
             )
             train_state = update_state[0]
             metric = traj_batch.info
+            loss_info["ratio_0"] = loss_info["ratio"].at[0, 0].get()
+            loss_info = jax.tree_map(lambda x: x.mean(), loss_info)
+            metric["loss"] = loss_info
             rng = update_state[-1]
             if config.get("DEBUG"):
 
