@@ -303,7 +303,7 @@ def make_train(config, env_args, reference_clip=None):
                         }
                     )
 
-                jax.debug.callback(callback, metric)
+                jax.experimental.io_callback(callback, None, metric)
 
             runner_state = (train_state, env_state, last_obs, rng)
             return runner_state, metric
