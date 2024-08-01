@@ -140,7 +140,9 @@ def make_train(config, env_args, reference_clip=None):
         obsv, env_state = env.reset(reset_rng, env_params)
 
         # TRAIN LOOP
-        def _update_step(runner_state, unused):
+        def _update_step(update_runner_state, unused):
+            runner_state, update_steps = update_runner_state
+            
             # COLLECT TRAJECTORIES
             def _env_step(runner_state, unused):
                 train_state, env_state, last_obs, rng = runner_state
@@ -303,15 +305,17 @@ def make_train(config, env_args, reference_clip=None):
                         }
                     )
 
+                metric["update_steps"] = update_steps
                 jax.experimental.io_callback(callback, None, metric)
+                update_steps = update_steps + 1
 
             runner_state = (train_state, env_state, last_obs, rng)
-            return runner_state, metric
+            return (runner_state, update_steps), metric
 
         rng, _rng = jax.random.split(rng)
         runner_state = (train_state, env_state, obsv, _rng)
         runner_state, metric = jax.lax.scan(
-            _update_step, runner_state, None, config["NUM_UPDATES"]
+            _update_step, (runner_state, 0), None, config["NUM_UPDATES"]
         )
         return {"runner_state": runner_state, "metrics": metric}
 
