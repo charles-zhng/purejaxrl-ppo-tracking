@@ -220,7 +220,8 @@ def make_train(config, env_args, reference_clip=None):
                         )
 
                         # CALCULATE ACTOR LOSS
-                        ratio = jnp.exp(log_prob - traj_batch.log_prob)
+                        logratio = log_prob - traj_batch.log_prob
+                        ratio = jnp.exp(logratio)
                         gae = (gae - gae.mean()) / (gae.std() + 1e-8)
                         loss_actor1 = ratio * gae
                         loss_actor2 = (
@@ -235,19 +236,36 @@ def make_train(config, env_args, reference_clip=None):
                         loss_actor = loss_actor.mean()
                         entropy = pi.entropy().mean()
 
+                        # debug
+                        approx_kl = ((ratio - 1) - logratio).mean()
+                        clip_frac = jnp.mean(jnp.abs(ratio - 1) > config["CLIP_EPS"])
+
                         total_loss = (
                             loss_actor
                             + config["VF_COEF"] * value_loss
                             - config["ENT_COEF"] * entropy
                         )
-                        return total_loss, (value_loss, loss_actor, entropy)
+                        return (
+                            total_loss,
+                            (value_loss, loss_actor, entropy),
+                            (ratio, approx_kl, clip_frac),
+                        )
 
                     grad_fn = jax.value_and_grad(_loss_fn, has_aux=True)
-                    total_loss, grads = grad_fn(
+                    total_loss, grads, debug = grad_fn(
                         train_state.params, traj_batch, advantages, targets
                     )
                     train_state = train_state.apply_gradients(grads=grads)
-                    return train_state, total_loss
+                    loss_info = {
+                        "total_loss": total_loss,
+                        "value_loss": grads[0],
+                        "actor_loss": grads[1],
+                        "entropy": grads[2],
+                        "ratio": debug[0],
+                        "approx_kl": debug[1],
+                        "clip_frac": debug[2],
+                    }
+                    return train_state, loss_info
 
                 train_state, traj_batch, advantages, targets, rng = update_state
                 rng, _rng = jax.random.split(rng)
