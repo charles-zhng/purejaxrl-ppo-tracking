@@ -312,16 +312,6 @@ def make_train(config, env_args, reference_clip=None):
             if config.get("DEBUG"):
 
                 def callback(info):
-                    # return_values = info["returned_episode_returns"][
-                    #     info["returned_episode"]
-                    # ]
-                    # timesteps = (
-                    #     info["timestep"][info["returned_episode"]] * config["NUM_ENVS"]
-                    # )
-                    # for t in range(len(timesteps)):
-                    #     print(
-                    #         f"global step={timesteps[t]}, episodic return={return_values[t]}"
-                    #     )
                     wandb.log(
                         {
                             "returns": info["returned_episode_returns"][-1, :].mean(),
@@ -383,7 +373,9 @@ if __name__ == "__main__":
     )
 
     wandb.run.name = f"tracking_{datetime.now()}"
-
+    print(f"Train config: \n {ppo_config}")
+    print(f"Env config: \n {env_cfg}")
+    print(f"anneal schedule: {ppo_config["ANNEAL_LR"] is True}")
     out = train_jit(rng)
     print(f"done in {time.time() - start_time}")
     print(out)
