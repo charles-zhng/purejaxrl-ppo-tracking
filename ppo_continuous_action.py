@@ -295,11 +295,11 @@ def make_train(config, env_args, reference_clip=None):
                     #     )
                     wandb.log(
                         {
-                            "returns": metric["returned_episode_returns"][-1, :].mean(),
-                            "env_step": metric["update_steps"]
+                            "returns": info["returned_episode_returns"][-1, :].mean(),
+                            "env_step": info["update_steps"]
                             * config["NUM_ENVS"]
                             * config["NUM_STEPS"],
-                            **metric["loss"],
+                            **info["loss"],
                         }
                     )
 
