@@ -247,12 +247,14 @@ def make_train(config, env_args, reference_clip=None):
                         )
                         return (
                             total_loss,
-                            (value_loss, loss_actor, entropy),
-                            (ratio, approx_kl, clip_frac),
+                            (
+                                (value_loss, loss_actor, entropy),
+                                (ratio, approx_kl, clip_frac),
+                            ),
                         )
 
                     grad_fn = jax.value_and_grad(_loss_fn, has_aux=True)
-                    total_loss, grads, debug = grad_fn(
+                    total_loss, (grads, debug) = grad_fn(
                         train_state.params, traj_batch, advantages, targets
                     )
                     train_state = train_state.apply_gradients(grads=grads)
