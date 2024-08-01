@@ -320,14 +320,15 @@ def make_train(config, env_args, reference_clip=None):
 
 if __name__ == "__main__":
     import time
+    from datetime import datetime
 
     start_time = time.time()
 
     ppo_config = OmegaConf.to_container(
-        OmegaConf.load("./ppo_config.yml"), resolve=True
+        OmegaConf.load("./configs/ppo_config.yml"), resolve=True
     )
     env_cfg = OmegaConf.to_container(
-        OmegaConf.load("./rodent_config.yml"), resolve=True
+        OmegaConf.load("./configs/rodent_config.yml"), resolve=True
     )
     rng = jax.random.PRNGKey(42)
 
@@ -349,6 +350,8 @@ if __name__ == "__main__":
         notes="purejaxrl",
         dir="/tmp",
     )
+
+    wandb.run.name = f"tracking_{datetime.now()}"
 
     out = train_jit(rng)
     print(f"done in {time.time() - start_time}")
