@@ -16,12 +16,12 @@ import numpy as np
 class RodentTracking(PipelineEnv):
     def __init__(
         self,
-        reference_clip,
         end_eff_names: List[str],
         appendage_names: List[str],
         walker_body_names: List[str],
         joint_names: List[str],
         center_of_mass: str,
+        reference_clip = None,
         mjcf_path: str = "./assets/rodent.xml",
         scale_factor: float = 0.9,
         solver: str = "cg",
@@ -36,6 +36,8 @@ class RodentTracking(PipelineEnv):
         body_error_multiplier: float = 1.0,
         **kwargs,
     ):
+        if reference_clip == None:
+            raise Exception("reference_clip is None!")
         root = mjcf.from_path(mjcf_path)
 
         # Change actuators to torque (from positional)

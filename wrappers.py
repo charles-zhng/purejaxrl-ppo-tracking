@@ -114,8 +114,8 @@ class LogWrapper(GymnaxWrapper):
 
 
 class BraxGymnaxWrapper:
-    def __init__(self, env_name, env_args={}, backend="mjx"):
-        env = envs.get_environment(env_name=env_name, backend=backend, **env_args)
+    def __init__(self, env_name, reference_clip=None, env_args={}, backend="mjx"):
+        env = envs.get_environment(env_name=env_name, reference_clip=reference_clip, backend=backend, **env_args)
         env = EpisodeWrapper(env, episode_length=1000, action_repeat=1)
         env = AutoResetWrapper(env)
         self._env = env

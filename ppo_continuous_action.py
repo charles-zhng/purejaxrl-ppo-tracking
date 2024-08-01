@@ -21,6 +21,9 @@ from rodent_env import RodentTracking
 from trajectory_preprocess import process_clip_to_train
 import os
 
+import warnings
+warnings.filterwarnings("ignore")
+
 os.environ["XLA_FLAGS"] = (
     "--xla_gpu_enable_triton_softmax_fusion=true " "--xla_gpu_triton_gemm_any=True "
 )
@@ -77,14 +80,14 @@ class Transition(NamedTuple):
     info: jnp.ndarray
 
 
-def make_train(config, env_args):
+def make_train(config, env_args, reference_clip=None):
     config["NUM_UPDATES"] = (
         config["TOTAL_TIMESTEPS"] // config["NUM_STEPS"] // config["NUM_ENVS"]
     )
     config["MINIBATCH_SIZE"] = (
         config["NUM_ENVS"] * config["NUM_STEPS"] // config["NUM_MINIBATCHES"]
     )
-    env, env_params = BraxGymnaxWrapper(config["ENV_NAME"], env_args=env_args), None
+    env, env_params = BraxGymnaxWrapper(config["ENV_NAME"], reference_clip=reference_clip, env_args=env_args), None
     env = LogWrapper(env)
     env = ClipAction(env)
     env = VecEnv(env)
@@ -300,6 +303,9 @@ def make_train(config, env_args):
 
 
 if __name__ == "__main__":
+    import time
+    start_time = time.time()
+
     config = {
         "LR": 3e-4,
         "NUM_ENVS": 128,
@@ -336,4 +342,5 @@ if __name__ == "__main__":
 
     train_jit = jax.jit(make_train(config, env_args, reference_clip=reference_clip))
     out = train_jit(rng)
+    print(f"done in {time.time() - start_time}}")
     print(out)
