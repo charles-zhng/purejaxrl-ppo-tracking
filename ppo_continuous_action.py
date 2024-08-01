@@ -15,13 +15,15 @@ from wrappers import (
     NormalizeVecReward,
     ClipAction,
 )
-from omegaconf import OmegaConf
 from brax import envs
+from omegaconf import OmegaConf
+import wandb
 from rodent_env import RodentTracking
 from trajectory_preprocess import process_clip_to_train
 import os
 
 import warnings
+
 warnings.filterwarnings("ignore")
 
 os.environ["XLA_FLAGS"] = (
@@ -87,7 +89,12 @@ def make_train(config, env_args, reference_clip=None):
     config["MINIBATCH_SIZE"] = (
         config["NUM_ENVS"] * config["NUM_STEPS"] // config["NUM_MINIBATCHES"]
     )
-    env, env_params = BraxGymnaxWrapper(config["ENV_NAME"], reference_clip=reference_clip, env_args=env_args), None
+    env, env_params = (
+        BraxGymnaxWrapper(
+            config["ENV_NAME"], reference_clip=reference_clip, env_args=env_args
+        ),
+        None,
+    )
     env = LogWrapper(env)
     env = ClipAction(env)
     env = VecEnv(env)
@@ -276,16 +283,25 @@ def make_train(config, env_args, reference_clip=None):
             if config.get("DEBUG"):
 
                 def callback(info):
-                    return_values = info["returned_episode_returns"][
-                        info["returned_episode"]
-                    ]
-                    timesteps = (
-                        info["timestep"][info["returned_episode"]] * config["NUM_ENVS"]
+                    # return_values = info["returned_episode_returns"][
+                    #     info["returned_episode"]
+                    # ]
+                    # timesteps = (
+                    #     info["timestep"][info["returned_episode"]] * config["NUM_ENVS"]
+                    # )
+                    # for t in range(len(timesteps)):
+                    #     print(
+                    #         f"global step={timesteps[t]}, episodic return={return_values[t]}"
+                    #     )
+                    wandb.log(
+                        {
+                            "returns": metric["returned_episode_returns"][-1, :].mean(),
+                            "env_step": metric["update_steps"]
+                            * config["NUM_ENVS"]
+                            * config["NUM_STEPS"],
+                            **metric["loss"],
+                        }
                     )
-                    for t in range(len(timesteps)):
-                        print(
-                            f"global step={timesteps[t]}, episodic return={return_values[t]}"
-                        )
 
                 jax.debug.callback(callback, metric)
 
@@ -304,32 +320,17 @@ def make_train(config, env_args, reference_clip=None):
 
 if __name__ == "__main__":
     import time
+
     start_time = time.time()
 
-    config = {
-        "LR": 3e-4,
-        "NUM_ENVS": 128,
-        "NUM_STEPS": 10,
-        "TOTAL_TIMESTEPS": 5e5,
-        "UPDATE_EPOCHS": 4,
-        "NUM_MINIBATCHES": 32,
-        "GAMMA": 0.99,
-        "GAE_LAMBDA": 0.95,
-        "CLIP_EPS": 0.2,
-        "ENT_COEF": 0.0,
-        "VF_COEF": 0.5,
-        "MAX_GRAD_NORM": 0.5,
-        "ACTIVATION": "tanh",
-        "ENV_NAME": "rodent",
-        "ANNEAL_LR": False,
-        "NORMALIZE_ENV": True,
-        "DEBUG": True,
-    }
-    rng = jax.random.PRNGKey(42)
-
+    ppo_config = OmegaConf.to_container(
+        OmegaConf.load("./ppo_config.yml"), resolve=True
+    )
     env_cfg = OmegaConf.to_container(
         OmegaConf.load("./rodent_config.yml"), resolve=True
     )
+    rng = jax.random.PRNGKey(42)
+
     env_args = env_cfg["env_args"]
 
     # Process rodent clip
@@ -340,7 +341,15 @@ if __name__ == "__main__":
         mjcf_path=env_args["mjcf_path"],
     )
 
-    train_jit = jax.jit(make_train(config, env_args, reference_clip=reference_clip))
+    train_jit = jax.jit(make_train(ppo_config, env_args, reference_clip=reference_clip))
+
+    run = wandb.init(
+        project="purejaxrl_tracking",
+        config={**ppo_config, **env_args},
+        notes="purejaxrl",
+        dir="/tmp",
+    )
+
     out = train_jit(rng)
-    print(f"done in {time.time() - start_time}}")
+    print(f"done in {time.time() - start_time}")
     print(out)
