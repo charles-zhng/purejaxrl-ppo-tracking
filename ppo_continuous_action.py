@@ -16,6 +16,7 @@ from wrappers import (
     ClipAction,
 )
 from brax import envs
+from brax.io import model
 from omegaconf import OmegaConf
 import wandb
 from rodent_env import RodentTracking
@@ -311,19 +312,21 @@ def make_train(config, env_args, reference_clip=None):
             rng = update_state[-1]
             if config.get("DEBUG"):
 
-                def callback(info):
+                def callback(info, params):
+                    env_step = info["update_steps"] * config["NUM_ENVS"] * config["NUM_STEPS"]
+                    os.makedirs(config["CHECKPOINT_DIR"], exist_ok=True)
+                    model.save_params(f"{config["CHECKPOINT_DIR"]}/{env_step}", params)
+                    
                     wandb.log(
                         {
                             "returns": info["returned_episode_returns"][-1, :].mean(),
-                            "env_step": info["update_steps"]
-                            * config["NUM_ENVS"]
-                            * config["NUM_STEPS"],
+                            "env_step": env_step,
                             **info["loss"],
                         }
                     )
 
                 metric["update_steps"] = update_steps
-                jax.experimental.io_callback(callback, None, metric)
+                jax.experimental.io_callback(callback, None, metric, train_state.params)
                 update_steps = update_steps + 1
 
             runner_state = (train_state, env_state, last_obs, rng)
@@ -344,10 +347,13 @@ if __name__ == "__main__":
     from datetime import datetime
 
     start_time = time.time()
-
+    id = datetime.now()
+    
     ppo_config = OmegaConf.to_container(
         OmegaConf.load("./configs/ppo_config.yml"), resolve=True
     )
+    ppo_config["CHECKPOINT_DIR"] += f"/{id}"
+    
     env_cfg = OmegaConf.to_container(
         OmegaConf.load("./configs/rodent_config.yml"), resolve=True
     )
@@ -372,10 +378,10 @@ if __name__ == "__main__":
         dir="/tmp",
     )
 
-    wandb.run.name = f"tracking_{datetime.now()}"
+    wandb.run.name = f"tracking_{id}"
     print(f"Train config: \n {ppo_config}")
     print(f"Env config: \n {env_cfg}")
-    print(f"anneal schedule: {ppo_config["ANNEAL_LR"] is True}")
+    print(f"anneal schedule: {ppo_config['ANNEAL_LR'] is True}")
     out = train_jit(rng)
     print(f"done in {time.time() - start_time}")
     print(out)

@@ -15,3 +15,4 @@ ENV_NAME: "rodent"
 ANNEAL_LR: false
 NORMALIZE_ENV: true
 DEBUG: true
+CHECKPOINT_DIR: "./checkpoints"
