@@ -315,10 +315,12 @@ def make_train(config, env_args, reference_clip=None):
             loss_info["ratio_0"] = loss_info["ratio"].at[0, 0].get()
             loss_info = jax.tree_map(lambda x: x.mean(), loss_info)
             metric["loss"] = loss_info
+            metric["qposes"] = traj_batch.qpos[:, 0, :]
+            metric["reward_rollout"] = traj_batch.reward[:, 0]
             rng = update_state[-1]
             if config.get("DEBUG"):
 
-                def callback(info, params, qposes):
+                def callback(info, params):
                     env_step = (
                         info["update_steps"] * config["NUM_ENVS"] * config["NUM_STEPS"]
                     )
@@ -351,8 +353,8 @@ def make_train(config, env_args, reference_clip=None):
                     video_path = f"{config['CHECKPOINT_DIR']}/{env_step}.mp4"
                     frames = []
                     with imageio.get_writer(video_path, fps=50) as video:
-                        for i in range(qposes.shape[0]):
-                            mj_data.qpos = qposes[i]
+                        for i in range(info["qposes"].shape[0]):
+                            mj_data.qpos = info["qposes"][i]
                             mujoco.mj_forward(mj_model, mj_data)
 
                             renderer.update_scene(
@@ -370,7 +372,8 @@ def make_train(config, env_args, reference_clip=None):
                     data = [
                         [x, y]
                         for (x, y) in zip(
-                            range(traj_batch.reward.shape[0]), traj_batch.reward[:, 0]
+                            range(info["reward_rollout"].shape[0]),
+                            info["reward_rollout"],
                         )
                     ]
                     table = wandb.Table(data=data, columns=["frame", "reward"])
@@ -386,9 +389,7 @@ def make_train(config, env_args, reference_clip=None):
                     )
 
                 metric["update_steps"] = update_steps
-                jax.experimental.io_callback(
-                    callback, None, metric, train_state.params, traj_batch.qpos[:, 0, :]
-                )
+                jax.experimental.io_callback(callback, None, metric, train_state.params)
                 update_steps = update_steps + 1
 
             runner_state = (train_state, env_state, last_obs, rng)
