@@ -452,7 +452,7 @@ if __name__ == "__main__":
     print(f"anneal schedule: {ppo_config['ANNEAL_LR'] is True}")
     out = train_jit(rng)
     # Save train output in pickle
-    with open(f'{ppo_config['CHECKPOINT_DIR']}/output.p', 'wb') as f:
+    with open(f"{ppo_config['CHECKPOINT_DIR']}/output.p", 'wb') as f:
         pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print(f"done in {time.time() - start_time}")
