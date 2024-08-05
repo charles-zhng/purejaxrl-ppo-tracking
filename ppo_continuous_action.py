@@ -15,10 +15,14 @@ from wrappers import (
     NormalizeVecReward,
     ClipAction,
 )
+import mujoco
+from dm_control import mjcf
+from dm_control.locomotion.walkers import rescale
 from brax import envs
 from brax.io import model
 from omegaconf import OmegaConf
 import wandb
+import imageio
 from rodent_env import RodentTracking
 from trajectory_preprocess import process_clip_to_train
 import os
@@ -312,11 +316,13 @@ def make_train(config, env_args, reference_clip=None):
             rng = update_state[-1]
             if config.get("DEBUG"):
 
-                def callback(info, params):
-                    env_step = info["update_steps"] * config["NUM_ENVS"] * config["NUM_STEPS"]
+                def callback(info, params, qposes):
+                    env_step = (
+                        info["update_steps"] * config["NUM_ENVS"] * config["NUM_STEPS"]
+                    )
                     os.makedirs(config["CHECKPOINT_DIR"], exist_ok=True)
-                    model.save_params(f"{config["CHECKPOINT_DIR"]}/{env_step}", params)
-                    
+                    model.save_params(f"{config['CHECKPOINT_DIR']}/{env_step}", params)
+
                     wandb.log(
                         {
                             "returns": info["returned_episode_returns"][-1, :].mean(),
@@ -325,8 +331,43 @@ def make_train(config, env_args, reference_clip=None):
                         }
                     )
 
+                    scene_option = mujoco.MjvOption()
+
+                    # Load mjx_model and mjx_data and set marker sites
+                    root = mjcf.from_path(env_args["mjcf_path"])
+
+                    rescale.rescale_subtree(
+                        root,
+                        0.9,
+                        0.9,
+                    )
+                    mj_model = mjcf.Physics.from_mjcf_model(root).model.ptr
+                    mj_data = mujoco.MjData(mj_model)
+                    renderer = mujoco.Renderer(mj_model, height=500, width=500)
+
+                    mujoco.mj_kinematics(mj_model, mj_data)
+                    video_path = f"{config['CHECKPOINT_DIR']}/{env_step}.mp4"
+                    frames = []
+                    with imageio.get_writer(video_path, fps=50) as video:
+                        for i in range(qposes.shape[0]):
+                            mj_data.qpos = qposes[i]
+                            mujoco.mj_forward(mj_model, mj_data)
+
+                            renderer.update_scene(
+                                mj_data,
+                                camera="close_profile",
+                                scene_option=scene_option,
+                            )
+                            pixels = renderer.render()
+                            video.append_data(pixels)
+                            frames.append(pixels)
+
+                    wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
+
                 metric["update_steps"] = update_steps
-                jax.experimental.io_callback(callback, None, metric, train_state.params)
+                jax.experimental.io_callback(
+                    callback, None, metric, train_state.params, traj_batch.qpos[:, 0, :]
+                )
                 update_steps = update_steps + 1
 
             runner_state = (train_state, env_state, last_obs, rng)
@@ -348,12 +389,12 @@ if __name__ == "__main__":
 
     start_time = time.time()
     id = datetime.now()
-    
+
     ppo_config = OmegaConf.to_container(
         OmegaConf.load("./configs/ppo_config.yml"), resolve=True
     )
     ppo_config["CHECKPOINT_DIR"] += f"/{id}"
-    
+
     env_cfg = OmegaConf.to_container(
         OmegaConf.load("./configs/rodent_config.yml"), resolve=True
     )
