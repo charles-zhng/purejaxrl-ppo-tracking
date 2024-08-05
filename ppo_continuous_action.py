@@ -85,6 +85,7 @@ class Transition(NamedTuple):
     log_prob: jnp.ndarray
     obs: jnp.ndarray
     info: jnp.ndarray
+    qpos: jnp.ndarray
 
 
 def make_train(config, env_args, reference_clip=None):
@@ -164,8 +165,9 @@ def make_train(config, env_args, reference_clip=None):
                 obsv, env_state, reward, done, info = env.step(
                     rng_step, env_state, action, env_params
                 )
+                qpos = env_state.env_state.env_state.env_state.pipeline_state.qpos
                 transition = Transition(
-                    done, action, value, reward, log_prob, last_obs, info
+                    done, action, value, reward, log_prob, last_obs, info, qpos
                 )
                 runner_state = (train_state, env_state, obsv, rng)
                 return runner_state, transition
