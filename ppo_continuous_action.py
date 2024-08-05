@@ -390,11 +390,7 @@ def make_train(config, env_args, reference_clip=None):
                     )
 
                 metric["update_steps"] = update_steps
-                # Log every 10 update steps
-                if metric["update_steps"] % 10 == 0:
-                    jax.experimental.io_callback(
-                        callback, None, metric, train_state.params
-                    )
+                jax.experimental.io_callback(callback, None, metric, train_state.params)
                 update_steps = update_steps + 1
 
             runner_state = (train_state, env_state, last_obs, rng)
@@ -452,7 +448,7 @@ if __name__ == "__main__":
     print(f"anneal schedule: {ppo_config['ANNEAL_LR'] is True}")
     out = train_jit(rng)
     # Save train output in pickle
-    with open(f"{ppo_config['CHECKPOINT_DIR']}/output.p", 'wb') as f:
+    with open(f"{ppo_config['CHECKPOINT_DIR']}/output.p", "wb") as f:
         pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print(f"done in {time.time() - start_time}")
