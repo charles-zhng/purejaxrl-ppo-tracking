@@ -364,6 +364,25 @@ def make_train(config, env_args, reference_clip=None):
 
                     wandb.log({"eval/rollout": wandb.Video(video_path, format="mp4")})
 
+                    # Plot reward over rollout
+                    data = [
+                        [x, y]
+                        for (x, y) in zip(
+                            range(traj_batch.reward.shape[0]), traj_batch.reward[:, 0]
+                        )
+                    ]
+                    table = wandb.Table(data=data, columns=["frame", "reward"])
+                    wandb.log(
+                        {
+                            "eval/rollout_reward": wandb.plot.line(
+                                table,
+                                "frame",
+                                "reward",
+                                title="reward for each rollout frame",
+                            )
+                        }
+                    )
+
                 metric["update_steps"] = update_steps
                 jax.experimental.io_callback(
                     callback, None, metric, train_state.params, traj_batch.qpos[:, 0, :]
